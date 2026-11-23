@@ -148,3 +148,88 @@ end-to-end explanation.
 ### How to verify this phase
 
 - `pytest -q` passes (9 tests: 2 health + 7 chunking).
+
+---
+
+## Phase 3: Embeddings + Qdrant vector store wiring
+
+### What we built
+
+- `app/services/embeddings.py`: `EmbeddingService` (batched OpenAI
+  embeddings, blank-input guard, injectable client).
+- `app/services/vector_store.py`: `QdrantStore` (ensure collection,
+  upsert, cosine search, count) plus `point_id_for()` UUID mapping.
+- `app/schemas.py`: new `SearchResult` (chunk + similarity score).
+- `docker-compose.yml`: API + Qdrant stack with a persistent volume.
+- `tests/test_embeddings.py` (6 tests, fake client) and
+  `tests/test_vector_store.py` (8 tests, in-memory Qdrant).
+
+### Python backend decisions
+
+1. **Swappable clients via constructor injection.** Both services take an
+   optional `client` argument defaulting to the real SDK client. Reason:
+   tests pass fakes without monkeypatching globals or needing network,
+   and production code stays untouched. This is dependency inversion in
+   its simplest form: depend on the interface (a `create` method), not
+   the concrete SDK.
+2. **No hand-rolled retry loop.** The OpenAI SDK already retries rate
+   limits with exponential backoff (`max_retries=2` by default). Writing
+   our own would double-retry and add untested code. Rule applied: use
+   the SDK's reliability features before building your own.
+3. **Fail fast on config errors.** Empty API key, non-positive batch
+   size, misaligned upsert lists, bad `top_k`, and collection width
+   mismatch all raise `ValueError` immediately. Each guards a specific
+   silent-corruption mode (e.g. upserting 1536-wide vectors into a
+   768-wide collection would fail deep inside Qdrant with a cryptic
+   error; we name the cause and even suggest "embedding model changed?").
+4. **Thin wrapper, not an ORM.** `QdrantStore` exposes exactly the four
+   operations the pipeline needs and returns our own Pydantic models,
+   so swapping vector DBs later touches one file. But it does not hide
+   Qdrant concepts (collections, points, payloads); leaky abstractions
+   that pretend the DB is generic cause more pain than thin ones.
+
+### RAG pipeline decisions
+
+- **Cosine distance.** Standard for text embeddings: it compares vector
+  direction (topic) and ignores magnitude (which for normalized OpenAI
+  vectors carries no meaning). Dot product would behave the same on
+  normalized vectors; cosine states the intent explicitly.
+- **UUIDv5 point ids derived from chunk ids.** Qdrant accepts only ints
+  or UUIDs as point ids, while ours are `"doc:3"` strings. `uuid5` is
+  deterministic, so re-ingesting a document overwrites its old points
+  instead of duplicating them. The human-readable `chunk_id` still lives
+  in the payload for citations.
+- **Full chunk in the payload.** Each point stores the whole `Chunk`
+  model (text, title, metadata), so search returns everything the answer
+  stage needs in one round trip, no second lookup by id.
+- **Batch size 100.** The embeddings API accepts up to 2048 inputs per
+  call, but smaller batches fail cheaper (a retry re-sends 100 texts,
+  not 2000) and keep memory flat. Env-tunable via `EMBED_BATCH_SIZE`.
+- **Dimension pinned next to the model name.** `embedding_dim = 1536`
+  matches `text-embedding-3-small`. Documented footgun: switching models
+  without switching dims fails loudly at `ensure_collection`, by design.
+
+### Engineering decisions
+
+- **Hermetic tests, live probe.** The suite runs with zero network (fake
+  OpenAI client, `QdrantClient(":memory:")`), so CI never needs keys or
+  servers. Separately, a throwaway `/tmp` probe verified the real
+  Compose Qdrant end to end (up, upsert, search, down). Fast tests for
+  every run, real infrastructure check for releases.
+- **Compose overrides, not code branches.** Inside Compose the API gets
+  `QDRANT_URL=http://qdrant:6333` via environment; locally it defaults
+  to `localhost`. Same image, no `if docker:` checks anywhere.
+- **Named volume for Qdrant storage.** Vectors survive `compose down`;
+  only `compose down -v` wipes them. Demo-friendly without extra backup
+  thinking.
+- **System design note (scaling):** embeddings are the expensive,
+  rate-limited step, so batching plus SDK retries is the throughput
+  story. Later, ingest can parallelize batches across workers; Qdrant
+  itself scales by sharding collections, which our single-collection
+  wrapper does not preclude.
+
+### How to verify this phase
+
+- `pytest -q` passes (23 tests, no network or keys needed).
+- `docker compose up -d qdrant`, live upsert/search probe prints
+  `LIVE_QDRANT_PROBE_OK`, `docker compose down` cleans up.

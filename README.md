@@ -82,13 +82,18 @@ raggy/
 ├── app/
 │   ├── main.py          # FastAPI entrypoint and routes
 │   ├── config.py        # Environment-driven settings (pydantic-settings)
-│   ├── schemas.py       # Pydantic document models
+│   ├── schemas.py       # Pydantic document and search models
 │   └── services/
-│       └── chunking.py  # LangChain-based text splitting service
+│       ├── chunking.py  # LangChain-based text splitting service
+│       ├── embeddings.py # OpenAI embedding service with batching
+│       └── vector_store.py # Qdrant storage wrapper
 ├── tests/
 │   ├── test_health.py
-│   └── test_chunking.py
+│   ├── test_chunking.py
+│   ├── test_embeddings.py
+│   └── test_vector_store.py
 ├── Dockerfile
+├── docker-compose.yml   # API + Qdrant stack
 ├── requirements.txt
 └── .env.example         # Copy to .env and fill in
 ```
@@ -102,7 +107,7 @@ Internal docs: [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) (build plan),
 
 ### Prerequisites
 * Python 3.11+
-* Docker (for the containerized run; Qdrant joins via Compose in a later step)
+* Docker + Docker Compose (for Qdrant and the containerized run)
 
 ### Installation & Run
 
@@ -123,7 +128,8 @@ Internal docs: [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) (build plan),
    ```bash
    cp .env.example .env
    ```
-   `OPENAI_API_KEY` can stay empty until the embedding stages land.
+   `OPENAI_API_KEY` is required for real embeddings; tests use a fake
+   client and in-memory Qdrant, so they need no key.
 
 4. **Run the API:**
    ```bash
@@ -137,6 +143,15 @@ Internal docs: [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) (build plan),
 docker build -t raggy .
 docker run -p 8000:8000 raggy
 ```
+
+### Run the full stack (API + Qdrant)
+
+```bash
+docker compose up --build
+```
+
+The API reads `QDRANT_URL=http://qdrant:6333` inside Compose; Qdrant data
+persists in a named volume across restarts.
 
 ### Run tests
 
@@ -161,7 +176,7 @@ Document ingest and query endpoints land with the retrieval stages below.
 
 - [x] FastAPI service, config, Docker packaging, health checks
 - [x] Document models and LangChain text splitting service
-- [ ] OpenAI embeddings + Qdrant vector store wiring
+- [x] OpenAI embeddings + Qdrant vector store wiring
 - [ ] Document ingest API
 - [ ] Cited Q&A over retrieved passages
 - [ ] Query router with Pydantic structured outputs

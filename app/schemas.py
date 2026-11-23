@@ -34,3 +34,10 @@ class Chunk(BaseModel):
     text: str
     title: str | None = None
     metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class SearchResult(BaseModel):
+    """One retrieval hit: the matched chunk plus its similarity score."""
+
+    chunk: Chunk
+    score: float = Field(description="Cosine similarity, higher is better.")

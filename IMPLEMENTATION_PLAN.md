@@ -48,14 +48,14 @@ and pushing after each phase.
 - First test: health endpoint returns ok
 - Learning focus: FastAPI app factory, Pydantic settings, Docker basics
 
-### Phase 2: Document models + text chunking service (in progress)
+### Phase 2: Document models + text chunking service (shipped)
 
 - Pydantic schemas: `DocumentIn`, `Chunk`
 - `ChunkingService` using LangChain `RecursiveCharacterTextSplitter`
 - Unit tests for chunker (overlap, empty text, long text)
 - Learning focus: why chunking matters, chunk size vs overlap tradeoff
 
-### Phase 3: Embeddings + Qdrant vector store wiring
+### Phase 3: Embeddings + Qdrant vector store wiring (shipped)
 
 - `EmbeddingService` (OpenAI embeddings, batched, retry on rate limit)
 - `VectorStore` wrapper around Qdrant client (create collection, upsert,
@@ -64,7 +64,7 @@ and pushing after each phase.
 - Tests with fakes/mocks (no real API key needed for CI)
 - Learning focus: embeddings, cosine similarity, vector DB collections
 
-### Phase 4: Document ingest API
+### Phase 4: Document ingest API (in progress)
 
 - `POST /documents/ingest`: text in, chunks + embeddings + Qdrant upsert
 - `GET /documents/count` or collection stats endpoint

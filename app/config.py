@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     chunk_size: int = 500
     chunk_overlap: int = 50
 
+    # Embeddings (used from Phase 3 onward; dim must match the model)
+    embed_batch_size: int = 100
+    embedding_dim: int = 1536
+
 
 def get_settings() -> Settings:
     """Factory so tests can override settings via dependency injection."""
