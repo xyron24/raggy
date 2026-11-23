@@ -41,3 +41,19 @@ class SearchResult(BaseModel):
 
     chunk: Chunk
     score: float = Field(description="Cosine similarity, higher is better.")
+
+
+class IngestResponse(BaseModel):
+    """Result of ingesting one document."""
+
+    doc_id: str
+    num_chunks: int = Field(ge=0)
+    chunk_ids: list[str] = Field(description="Ids of stored chunks, in order.")
+
+
+class CollectionStats(BaseModel):
+    """Point count and shape info for the vector collection."""
+
+    collection: str
+    count: int = Field(ge=0)
+    vector_size: int = Field(gt=0)
