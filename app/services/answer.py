@@ -3,6 +3,7 @@
 from app.schemas import CitedSource, QueryResponse, SearchResult
 from app.services.chat import ChatService
 from app.services.retriever import RetrieverService
+from app.services.router import QueryRouter
 
 SYSTEM_PROMPT = (
     "You answer questions using ONLY the numbered passages below. "
@@ -24,17 +25,33 @@ def format_context(results: list[SearchResult]) -> str:
 
 
 class AnswerService:
-    """Retrieves passages and synthesizes a cited answer."""
+    """Routes, retrieves passages, and synthesizes a cited answer."""
 
-    def __init__(self, retriever: RetrieverService, chat: ChatService) -> None:
+    def __init__(
+        self,
+        retriever: RetrieverService,
+        chat: ChatService,
+        router: QueryRouter,
+    ) -> None:
         self._retriever = retriever
         self._chat = chat
+        self._router = router
 
     def answer(self, query: str, top_k: int = 5) -> QueryResponse:
-        """Answer a question with citations, or decline honestly."""
+        """Answer a question with citations, or decline honestly.
+
+        Routing runs before retrieval so later expansion stages can pick
+        their own retrieval strategy per route.
+        """
+        decision = self._router.route(query)
         results = self._retriever.retrieve(query, top_k=top_k)
         if not results:
-            return QueryResponse(answer=NO_PASSAGES_ANSWER, sources=[])
+            return QueryResponse(
+                answer=NO_PASSAGES_ANSWER,
+                sources=[],
+                route=decision.kind,
+                confidence=0.0,
+            )
         user_prompt = f"Passages:\n{format_context(results)}\n\nQuestion: {query}\nAnswer with citations:"
         text = self._chat.complete(SYSTEM_PROMPT, user_prompt).strip()
         return QueryResponse(
@@ -50,4 +67,7 @@ class AnswerService:
                 )
                 for i, hit in enumerate(results, start=1)
             ],
+            route=decision.kind,
+            # Qdrant returns hits best-first, so the head is the max score.
+            confidence=results[0].score,
         )

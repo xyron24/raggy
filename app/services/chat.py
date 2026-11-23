@@ -1,8 +1,11 @@
 """OpenAI chat completion service with an injectable client."""
 
-from typing import Any
+from typing import Any, TypeVar
 
 import openai
+from pydantic import BaseModel
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class ChatService:
@@ -36,3 +39,25 @@ class ChatService:
             ],
         )
         return response.choices[0].message.content or ""
+
+    def complete_structured(
+        self, system: str, user: str, response_model: type[T]
+    ) -> T:
+        """Return a Pydantic-validated structured output for the prompt.
+
+        Uses the SDK's `parse` helper, which constrains the model to the
+        schema instead of hoping free-form JSON parses.
+        """
+        response = self._client.chat.completions.parse(
+            model=self.model,
+            temperature=self.temperature,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            response_format=response_model,
+        )
+        parsed = response.choices[0].message.parsed
+        if parsed is None:
+            raise ValueError("structured output parse returned nothing")
+        return parsed

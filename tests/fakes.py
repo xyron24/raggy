@@ -1,12 +1,18 @@
 """Shared test fakes: deterministic, no network, no keys."""
 
 from collections.abc import Sequence
+from types import SimpleNamespace
+from typing import Any, TypeVar
 
+from pydantic import BaseModel
 from qdrant_client import QdrantClient
 
+from app.schemas import QueryKind, RouteDecision
 from app.services.chunking import ChunkingService
 from app.services.ingest import IngestService
 from app.services.vector_store import QdrantStore
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class FakeEmbeddingService:
@@ -25,15 +31,73 @@ class FakeEmbeddingService:
 
 
 class FakeChatService:
-    """Drop-in for ChatService returning a canned cited answer."""
+    """Drop-in for ChatService with canned replies and route decisions."""
 
-    def __init__(self, reply: str = "Refunds are issued within 30 days [1].") -> None:
+    def __init__(
+        self,
+        reply: str = "Refunds are issued within 30 days [1].",
+        decisions: list[RouteDecision] | None = None,
+    ) -> None:
         self.reply = reply
-        self.calls: list[tuple[str, str]] = []
+        self._decisions = list(decisions or [])
+        self.default_decision = RouteDecision(
+            kind=QueryKind.FACTUAL, reason="default test route"
+        )
+        self.complete_calls: list[tuple[str, str]] = []
+        self.structured_calls: list[tuple[str, str, Any]] = []
 
     def complete(self, system: str, user: str) -> str:
-        self.calls.append((system, user))
+        self.complete_calls.append((system, user))
         return self.reply
+
+    def complete_structured(
+        self, system: str, user: str, response_model: type[T]
+    ) -> T:
+        self.structured_calls.append((system, user, response_model))
+        if self._decisions:
+            return self._decisions.pop(0)  # type: ignore[return-value]
+        return self.default_decision  # type: ignore[return-value]
+
+
+class FakeChatCompletions:
+    """Mimics client.chat.completions with scripted create/parse replies."""
+
+    def __init__(
+        self,
+        replies: list[str] | None = None,
+        parsed_replies: list[BaseModel] | None = None,
+    ) -> None:
+        self._replies = list(replies or [])
+        self._parsed = list(parsed_replies or [])
+        self.create_calls: list[dict] = []
+        self.parse_calls: list[dict] = []
+
+    def create(self, **kwargs: Any) -> Any:
+        self.create_calls.append(kwargs)
+        text = self._replies.pop(0) if self._replies else ""
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=text))]
+        )
+
+    def parse(self, **kwargs: Any) -> Any:
+        self.parse_calls.append(kwargs)
+        parsed = self._parsed.pop(0)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed))]
+        )
+
+
+class FakeChatClient:
+    """Mimics the OpenAI client surface ChatService uses."""
+
+    def __init__(
+        self,
+        replies: list[str] | None = None,
+        parsed_replies: list[BaseModel] | None = None,
+    ) -> None:
+        self.chat = SimpleNamespace(
+            completions=FakeChatCompletions(replies, parsed_replies)
+        )
 
 
 def make_test_ingest_service(dim: int = 8) -> IngestService:

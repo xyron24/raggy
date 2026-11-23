@@ -1,5 +1,7 @@
 """Pydantic models for documents and their text chunks."""
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 
@@ -79,8 +81,25 @@ class CitedSource(BaseModel):
     score: float
 
 
+class QueryKind(str, Enum):
+    """Router classification for a question."""
+
+    FACTUAL = "factual"
+    VAGUE = "vague"
+    COMPLEX = "complex"
+
+
+class RouteDecision(BaseModel):
+    """Structured router output: which retrieval path a query should take."""
+
+    kind: QueryKind
+    reason: str = Field(description="One sentence on why this route fits.")
+
+
 class QueryResponse(BaseModel):
     """Grounded answer plus the sources it cites."""
 
     answer: str
     sources: list[CitedSource] = Field(description="In citation order: sources[i].index == i + 1.")
+    route: QueryKind = Field(description="Router classification for this query.")
+    confidence: float = Field(description="Best passage similarity score; 0 when no passages.")

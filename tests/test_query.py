@@ -10,12 +10,13 @@ from qdrant_client import QdrantClient
 from app.config import Settings
 from app.dependencies import get_answer_service, get_settings
 from app.main import app
+from app.schemas import DocumentIn, QueryKind, RouteDecision
 from app.services.answer import AnswerService
 from app.services.chunking import ChunkingService
 from app.services.ingest import IngestService
 from app.services.retriever import RetrieverService
+from app.services.router import QueryRouter
 from app.services.vector_store import QdrantStore
-from app.schemas import DocumentIn
 from tests.fakes import FakeChatService, FakeEmbeddingService
 
 
@@ -39,7 +40,9 @@ def harness() -> Iterator[Harness]:
     )
     chat = FakeChatService()
     ingest = IngestService(ChunkingService(), FakeEmbeddingService(dim), store)
-    answer = AnswerService(RetrieverService(FakeEmbeddingService(dim), store), chat)
+    answer = AnswerService(
+        RetrieverService(FakeEmbeddingService(dim), store), chat, QueryRouter(chat)
+    )
     app.dependency_overrides[get_answer_service] = lambda: answer
     yield Harness(client=TestClient(app), ingest=ingest, chat=chat)
     app.dependency_overrides.clear()
@@ -67,25 +70,30 @@ def test_query_happy_path_returns_cited_answer(harness: Harness):
     assert source["chunk_id"] == "faq1:0"
     assert source["doc_id"] == "faq1"
     assert "Refunds are issued" in source["text"]
+    assert body["route"] == "factual"
+    assert body["confidence"] == pytest.approx(1.0)
 
 
 def test_prompt_contains_passages_and_question(harness: Harness):
     seed(harness)
     harness.client.post("/query", json={"query": "What is the refund policy?"})
-    assert len(harness.chat.calls) == 1
-    system, user = harness.chat.calls[0]
+    assert len(harness.chat.complete_calls) == 1
+    system, user = harness.chat.complete_calls[0]
     assert "[n]" in system
     assert "Refunds are issued within 30 days" in user
     assert "What is the refund policy?" in user
 
 
-def test_empty_store_answers_without_llm_call(harness: Harness):
+def test_empty_store_skips_synthesis_call(harness: Harness):
     response = harness.client.post("/query", json={"query": "anything?"})
     assert response.status_code == 200
     body = response.json()
     assert body["sources"] == []
     assert "No relevant passages" in body["answer"]
-    assert harness.chat.calls == []
+    assert body["route"] == "factual"
+    assert body["confidence"] == 0.0
+    assert harness.chat.complete_calls == []
+    assert len(harness.chat.structured_calls) == 1
 
 
 def test_top_k_limits_sources(harness: Harness):
@@ -94,6 +102,18 @@ def test_top_k_limits_sources(harness: Harness):
     body = harness.client.post("/query", json={"query": "facts?", "top_k": 1}).json()
     assert len(body["sources"]) == 1
     assert body["sources"][0]["index"] == 1
+
+
+def test_response_route_follows_router_decision(harness: Harness):
+    seed(harness)
+    harness.chat.default_decision = RouteDecision(
+        kind=QueryKind.COMPLEX, reason="seeded decision"
+    )
+    body = harness.client.post("/query", json={"query": "compare everything"}).json()
+    assert body["route"] == "complex"
+    system, user, model = harness.chat.structured_calls[0]
+    assert "compare everything" in user
+    assert model.__name__ == "RouteDecision"
 
 
 def test_query_rejects_bad_input(harness: Harness):

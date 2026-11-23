@@ -13,6 +13,7 @@ from app.services.chunking import ChunkingService
 from app.services.embeddings import EmbeddingService
 from app.services.ingest import IngestService
 from app.services.retriever import RetrieverService
+from app.services.router import QueryRouter
 from app.services.vector_store import QdrantStore
 
 
@@ -75,8 +76,15 @@ def get_retriever_service(
     return RetrieverService(embeddings=embeddings, store=store)
 
 
+def get_router_service(
+    chat: ChatService = Depends(get_chat_service),
+) -> QueryRouter:
+    return QueryRouter(chat=chat)
+
+
 def get_answer_service(
     retriever: RetrieverService = Depends(get_retriever_service),
     chat: ChatService = Depends(get_chat_service),
+    router: QueryRouter = Depends(get_router_service),
 ) -> AnswerService:
-    return AnswerService(retriever=retriever, chat=chat)
+    return AnswerService(retriever=retriever, chat=chat, router=router)

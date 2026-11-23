@@ -93,7 +93,8 @@ raggy/
 │       ├── vector_store.py # Qdrant storage wrapper
 │       ├── ingest.py    # Split-embed-store orchestration
 │       ├── retriever.py # Query embedding + top-k search
-│       ├── chat.py      # OpenAI chat completions
+│       ├── chat.py      # OpenAI chat + structured outputs
+│       ├── router.py    # Query classification and routing
 │       └── answer.py    # Cited answer synthesis
 ├── tests/
 │   ├── fakes.py         # Shared fakes (embeddings, chat, memory Qdrant)
@@ -102,7 +103,8 @@ raggy/
 │   ├── test_embeddings.py
 │   ├── test_vector_store.py
 │   ├── test_documents.py
-│   └── test_query.py
+│   ├── test_query.py
+│   └── test_router.py
 ├── Dockerfile
 ├── docker-compose.yml   # API + Qdrant stack
 ├── requirements.txt
@@ -177,7 +179,7 @@ pytest -q
 | GET    | `/health`           | Liveness probe, returns `{"status": "ok"}` |
 | POST   | `/documents/ingest` | Split, embed, and store a document       |
 | GET    | `/documents/stats`  | Point count and collection info          |
-| POST   | `/query`            | Answer a question with cited sources     |
+| POST   | `/query`            | Answer with cited sources, route, confidence |
 
 ```bash
 curl -X POST http://localhost:8000/documents/ingest \
