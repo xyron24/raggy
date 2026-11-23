@@ -7,8 +7,8 @@ with grounded citations, using OpenAI embeddings, Qdrant vector search,
 LangChain, HyDE, Step-Back Prompting, Pydantic structured outputs, and a
 re-ranking layer.
 
-This file is the build contract. We implement it chunk by chunk, committing
-and pushing after each chunk.
+This file is the build contract. We implement it phase by phase, committing
+and pushing after each phase.
 
 ## Resume mapping (what each line needs)
 
@@ -25,7 +25,7 @@ and pushing after each chunk.
    Needs: re-ranker module, score filtering, top-k selection before answer
    generation.
 
-## Tech stack (pinned in Chunk 1)
+## Tech stack (pinned in Phase 1)
 
 - Python 3.11+ with FastAPI and Uvicorn
 - Pydantic v2 + pydantic-settings for config and structured outputs
@@ -36,9 +36,9 @@ and pushing after each chunk.
 - Docker + Docker Compose for containerized dev and demo
 - Pytest + HTTPX for API tests
 
-## Chunks (10 total, each is one commit)
+## Phases (10 total, each is one commit)
 
-### Chunk 1: Project scaffold + health API + Docker (THIS CHUNK)
+### Phase 1: Project scaffold + health API + Docker (shipped)
 
 - Folder layout: `app/`, `tests/`
 - FastAPI app with `GET /` and `GET /health`
@@ -48,14 +48,14 @@ and pushing after each chunk.
 - First test: health endpoint returns ok
 - Learning focus: FastAPI app factory, Pydantic settings, Docker basics
 
-### Chunk 2: Document models + text chunking service
+### Phase 2: Document models + text chunking service (in progress)
 
-- Pydantic schemas: `DocumentIn`, `Chunk`, `IngestResponse`
+- Pydantic schemas: `DocumentIn`, `Chunk`
 - `ChunkingService` using LangChain `RecursiveCharacterTextSplitter`
 - Unit tests for chunker (overlap, empty text, long text)
 - Learning focus: why chunking matters, chunk size vs overlap tradeoff
 
-### Chunk 3: Embeddings + Qdrant vector store wiring
+### Phase 3: Embeddings + Qdrant vector store wiring
 
 - `EmbeddingService` (OpenAI embeddings, batched, retry on rate limit)
 - `VectorStore` wrapper around Qdrant client (create collection, upsert,
@@ -64,14 +64,14 @@ and pushing after each chunk.
 - Tests with fakes/mocks (no real API key needed for CI)
 - Learning focus: embeddings, cosine similarity, vector DB collections
 
-### Chunk 4: Document ingest API
+### Phase 4: Document ingest API
 
 - `POST /documents/ingest`: text in, chunks + embeddings + Qdrant upsert
 - `GET /documents/count` or collection stats endpoint
 - Request validation, error handling, idempotent doc ids
 - Learning focus: FastAPI dependency injection, service layer pattern
 
-### Chunk 5: Basic RAG query with grounded citations
+### Phase 5: Basic RAG query with grounded citations
 
 - `RetrieverService`: embed query, top-k Qdrant search
 - `AnswerService`: stuff context into prompt, call chat model, return
@@ -79,7 +79,7 @@ and pushing after each chunk.
 - `POST /query`: request/response schemas, returns answer + sources
 - Learning focus: RAG loop, grounded generation, citation formatting
 
-### Chunk 6: Pydantic structured outputs + intelligent query router
+### Phase 6: Pydantic structured outputs + intelligent query router
 
 - Structured `RAGAnswer` model (answer, citations, confidence)
 - `QueryRouter`: classify query as FACTUAL / COMPLEX / COMPARATIVE, route
@@ -88,14 +88,14 @@ and pushing after each chunk.
 - Tests for router decisions on sample queries
 - Learning focus: structured outputs, routing pattern, cost control
 
-### Chunk 7: HyDE (Hypothetical Document Embeddings)
+### Phase 7: HyDE (Hypothetical Document Embeddings)
 
 - `HyDEService`: generate hypothetical answer, embed it, retrieve with it
 - Feature flag + router integration (use HyDE for vague/short queries)
 - Before/after retrieval comparison in tests
 - Learning focus: why HyDE helps vocabulary mismatch
 
-### Chunk 8: Step-Back Prompting
+### Phase 8: Step-Back Prompting
 
 - `StepBackService`: generate broader step-back question, retrieve for
   both original + step-back, merge results
@@ -103,7 +103,7 @@ and pushing after each chunk.
 - Tests for step-back question generation and merged retrieval
 - Learning focus: abstraction level mismatch in retrieval
 
-### Chunk 9: Re-ranking layer
+### Phase 9: Re-ranking layer
 
 - `RerankerService`: score (query, chunk) pairs, filter low scores,
   keep top-n before LLM synthesis
@@ -113,23 +113,23 @@ and pushing after each chunk.
 - Tests: noisy chunks get filtered, relevant chunks survive
 - Learning focus: precision vs recall, two-stage retrieval
 
-### Chunk 10: Full-stack polish + docs + demo data
+### Phase 10: Full-stack polish + docs + demo data
 
 - `docker compose up` runs API + Qdrant end to end
 - Seed script with sample domain docs (e.g. company FAQ)
 - Full test suite green, README with curl examples
 - `ENGINEERING_NOTES.md`: every Python, RAG, and engineering decision
-  explained for learning (accumulated across all chunks)
+  explained for learning (accumulated across all phases)
 - Learning focus: Docker Compose networking, demo readiness
 
-## Engineering rules for all chunks
+## Engineering rules for all phases
 
-- One chunk = one commit = one push. No mixing chunks in a commit.
-- Every chunk adds or updates tests. Nothing merges red.
+- One phase = one commit = one push. No mixing phases in a commit.
+- Every phase adds or updates tests. Nothing merges red.
 - Services depend on interfaces/protocols so tests can use fakes
   (no real OpenAI/Qdrant needed for unit tests).
 - Config always comes from environment via `pydantic-settings`.
-- Each chunk updates `README.md` (what works now) and appends to
+- Each phase updates `README.md` (what works now) and appends to
   `ENGINEERING_NOTES.md` (what we learned and why).
 
 ## Definition of done (final)

@@ -1,4 +1,4 @@
-"""Chunk 1 tests: the API boots and health checks pass."""
+"""Health and root endpoint tests: the API boots and reports ok."""
 
 from fastapi.testclient import TestClient
 
