@@ -85,19 +85,24 @@ raggy/
 │   ├── schemas.py       # Pydantic document and search models
 │   ├── dependencies.py  # FastAPI service wiring
 │   ├── routers/
-│   │   └── documents.py # Ingest + stats endpoints
+│   │   ├── documents.py # Ingest + stats endpoints
+│   │   └── query.py     # Cited Q&A endpoint
 │   └── services/
 │       ├── chunking.py  # LangChain-based text splitting service
 │       ├── embeddings.py # OpenAI embedding service with batching
 │       ├── vector_store.py # Qdrant storage wrapper
-│       └── ingest.py    # Split-embed-store orchestration
+│       ├── ingest.py    # Split-embed-store orchestration
+│       ├── retriever.py # Query embedding + top-k search
+│       ├── chat.py      # OpenAI chat completions
+│       └── answer.py    # Cited answer synthesis
 ├── tests/
-│   ├── fakes.py         # Shared fakes (fake embeddings, memory Qdrant)
+│   ├── fakes.py         # Shared fakes (embeddings, chat, memory Qdrant)
 │   ├── test_health.py
 │   ├── test_chunking.py
 │   ├── test_embeddings.py
 │   ├── test_vector_store.py
-│   └── test_documents.py
+│   ├── test_documents.py
+│   └── test_query.py
 ├── Dockerfile
 ├── docker-compose.yml   # API + Qdrant stack
 ├── requirements.txt
@@ -172,24 +177,16 @@ pytest -q
 | GET    | `/health`           | Liveness probe, returns `{"status": "ok"}` |
 | POST   | `/documents/ingest` | Split, embed, and store a document       |
 | GET    | `/documents/stats`  | Point count and collection info          |
+| POST   | `/query`            | Answer a question with cited sources     |
 
 ```bash
 curl -X POST http://localhost:8000/documents/ingest \
   -H "Content-Type: application/json" \
   -d '{"doc_id": "faq1", "title": "FAQ", "text": "Refunds are issued within 30 days."}'
+
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the refund policy?"}'
 ```
 
-Query endpoints land with the retrieval stages below.
-
----
-
-## Roadmap
-
-- [x] FastAPI service, config, Docker packaging, health checks
-- [x] Document models and LangChain text splitting service
-- [x] OpenAI embeddings + Qdrant vector store wiring
-- [x] Document ingest API
-- [ ] Cited Q&A over retrieved passages
-- [ ] Query router with Pydantic structured outputs
-- [ ] HyDE and Step-Back query expansion
-- [ ] Re-ranking layer before synthesis
+More endpoints are documented in the table above as they ship.

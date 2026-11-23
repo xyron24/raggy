@@ -57,3 +57,30 @@ class CollectionStats(BaseModel):
     collection: str
     count: int = Field(ge=0)
     vector_size: int = Field(gt=0)
+
+
+class QueryRequest(BaseModel):
+    """A question against the ingested documents."""
+
+    query: str = Field(min_length=1)
+    top_k: int | None = Field(
+        default=None, gt=0, le=20, description="Passages to use. Defaults to server setting."
+    )
+
+
+class CitedSource(BaseModel):
+    """One passage cited by an answer, numbered to match [n] markers."""
+
+    index: int = Field(ge=1, description="1-based citation number used in the answer.")
+    chunk_id: str
+    doc_id: str
+    title: str | None = None
+    text: str
+    score: float
+
+
+class QueryResponse(BaseModel):
+    """Grounded answer plus the sources it cites."""
+
+    answer: str
+    sources: list[CitedSource] = Field(description="In citation order: sources[i].index == i + 1.")

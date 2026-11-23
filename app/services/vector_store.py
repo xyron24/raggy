@@ -32,6 +32,10 @@ class QdrantStore:
         self.collection = collection
         self.vector_size = vector_size
 
+    def exists(self) -> bool:
+        """True when the collection has been created."""
+        return self._client.collection_exists(self.collection)
+
     def ensure_collection(self) -> None:
         """Create the collection if missing; verify width if present."""
         if not self._client.collection_exists(self.collection):

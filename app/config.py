@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     embed_batch_size: int = 100
     embedding_dim: int = 1536
 
+    # Retrieval (used from Phase 5 onward)
+    default_top_k: int = 5
+
 
 def get_settings() -> Settings:
     """Factory so tests can override settings via dependency injection."""

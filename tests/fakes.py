@@ -24,6 +24,18 @@ class FakeEmbeddingService:
         return self.embed_texts([query])[0]
 
 
+class FakeChatService:
+    """Drop-in for ChatService returning a canned cited answer."""
+
+    def __init__(self, reply: str = "Refunds are issued within 30 days [1].") -> None:
+        self.reply = reply
+        self.calls: list[tuple[str, str]] = []
+
+    def complete(self, system: str, user: str) -> str:
+        self.calls.append((system, user))
+        return self.reply
+
+
 def make_test_ingest_service(dim: int = 8) -> IngestService:
     """IngestService wired to real chunking, fake embeddings, memory Qdrant."""
     store = QdrantStore(

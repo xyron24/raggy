@@ -31,6 +31,18 @@ def test_ensure_collection_is_idempotent(store: QdrantStore):
     assert store.count() == 0
 
 
+def test_exists_reports_collection_presence():
+    store = QdrantStore(
+        url=":memory:",
+        collection="fresh",
+        vector_size=4,
+        client=QdrantClient(":memory:"),
+    )
+    assert store.exists() is False
+    store.ensure_collection()
+    assert store.exists() is True
+
+
 def test_upsert_and_search_roundtrip(store: QdrantStore):
     chunks = [make_chunk(0), make_chunk(1)]
     assert store.upsert(chunks, [[1, 0, 0, 0], [0, 1, 0, 0]]) == 2

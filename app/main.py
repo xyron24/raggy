@@ -4,11 +4,13 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.routers.documents import router as documents_router
+from app.routers.query import router as query_router
 
 settings = get_settings()
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 app.include_router(documents_router)
+app.include_router(query_router)
 
 
 @app.get("/")

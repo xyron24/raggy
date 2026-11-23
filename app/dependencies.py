@@ -7,9 +7,12 @@ via `app.dependency_overrides`, so no test needs real keys or servers.
 from fastapi import Depends, HTTPException
 
 from app.config import Settings, get_settings
+from app.services.answer import AnswerService
+from app.services.chat import ChatService
 from app.services.chunking import ChunkingService
 from app.services.embeddings import EmbeddingService
 from app.services.ingest import IngestService
+from app.services.retriever import RetrieverService
 from app.services.vector_store import QdrantStore
 
 
@@ -51,3 +54,29 @@ def get_ingest_service(
     store: QdrantStore = Depends(get_vector_store),
 ) -> IngestService:
     return IngestService(chunking=chunking, embeddings=embeddings, store=store)
+
+
+def get_chat_service(
+    settings: Settings = Depends(get_settings),
+) -> ChatService:
+    if not settings.openai_api_key:
+        raise HTTPException(
+            status_code=503, detail="chat not configured: set OPENAI_API_KEY"
+        )
+    return ChatService(
+        api_key=settings.openai_api_key, model=settings.openai_chat_model
+    )
+
+
+def get_retriever_service(
+    embeddings: EmbeddingService = Depends(get_embedding_service),
+    store: QdrantStore = Depends(get_vector_store),
+) -> RetrieverService:
+    return RetrieverService(embeddings=embeddings, store=store)
+
+
+def get_answer_service(
+    retriever: RetrieverService = Depends(get_retriever_service),
+    chat: ChatService = Depends(get_chat_service),
+) -> AnswerService:
+    return AnswerService(retriever=retriever, chat=chat)
