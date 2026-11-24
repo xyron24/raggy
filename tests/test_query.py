@@ -17,6 +17,7 @@ from app.services.hyde import HyDEService
 from app.services.ingest import IngestService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
+from app.services.stepback import StepBackService
 from app.services.vector_store import QdrantStore
 from tests.fakes import FakeChatService, FakeEmbeddingService
 
@@ -42,10 +43,13 @@ def harness() -> Iterator[Harness]:
     chat = FakeChatService()
     ingest = IngestService(ChunkingService(), FakeEmbeddingService(dim), store)
     answer = AnswerService(
-        RetrieverService(FakeEmbeddingService(dim), store, HyDEService(chat)),
+        RetrieverService(
+            FakeEmbeddingService(dim), store, HyDEService(chat), StepBackService(chat)
+        ),
         chat,
         QueryRouter(chat),
         hyde_enabled=True,
+        stepback_enabled=True,
     )
     app.dependency_overrides[get_answer_service] = lambda: answer
     yield Harness(client=TestClient(app), ingest=ingest, chat=chat)
@@ -117,10 +121,15 @@ def test_response_route_follows_router_decision(harness: Harness):
     )
     body = harness.client.post("/query", json={"query": "compare everything"}).json()
     assert body["route"] == "complex"
-    assert body["expanded"] is False
+    assert body["expanded"] is True
+    assert len(body["sources"]) == 1
     system, user, model = harness.chat.structured_calls[0]
     assert "compare everything" in user
     assert model.__name__ == "RouteDecision"
+    assert len(harness.chat.complete_calls) == 2
+    stepback_system, stepback_user = harness.chat.complete_calls[0]
+    assert stepback_user == "compare everything"
+    assert "broader" in stepback_system
 
 
 def test_vague_route_expands_via_hyde(harness: Harness):
@@ -151,7 +160,9 @@ def test_hyde_flag_off_keeps_plain_retrieval():
     ingest = IngestService(ChunkingService(), FakeEmbeddingService(dim), store)
     ingest.ingest(DocumentIn(doc_id="d", text="some fact here"))
     answer = AnswerService(
-        RetrieverService(FakeEmbeddingService(dim), store, HyDEService(chat)),
+        RetrieverService(
+            FakeEmbeddingService(dim), store, HyDEService(chat), StepBackService(chat)
+        ),
         chat,
         QueryRouter(chat),
         hyde_enabled=False,
@@ -162,6 +173,37 @@ def test_hyde_flag_off_keeps_plain_retrieval():
     finally:
         app.dependency_overrides.clear()
     assert body["route"] == "vague"
+    assert body["expanded"] is False
+    assert len(chat.complete_calls) == 1
+
+
+def test_stepback_flag_off_keeps_plain_retrieval():
+    dim = 8
+    store = QdrantStore(
+        url=":memory:",
+        collection="test_docs",
+        vector_size=dim,
+        client=QdrantClient(":memory:"),
+    )
+    chat = FakeChatService(
+        decisions=[RouteDecision(kind=QueryKind.COMPLEX, reason="seeded")]
+    )
+    ingest = IngestService(ChunkingService(), FakeEmbeddingService(dim), store)
+    ingest.ingest(DocumentIn(doc_id="d", text="some fact here"))
+    answer = AnswerService(
+        RetrieverService(
+            FakeEmbeddingService(dim), store, HyDEService(chat), StepBackService(chat)
+        ),
+        chat,
+        QueryRouter(chat),
+        stepback_enabled=False,
+    )
+    app.dependency_overrides[get_answer_service] = lambda: answer
+    try:
+        body = TestClient(app).post("/query", json={"query": "complex?"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body["route"] == "complex"
     assert body["expanded"] is False
     assert len(chat.complete_calls) == 1
 

@@ -15,6 +15,7 @@ from app.services.hyde import HyDEService
 from app.services.ingest import IngestService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
+from app.services.stepback import StepBackService
 from app.services.vector_store import QdrantStore
 
 
@@ -76,12 +77,21 @@ def get_hyde_service(
     return HyDEService(chat=chat)
 
 
+def get_stepback_service(
+    chat: ChatService = Depends(get_chat_service),
+) -> StepBackService:
+    return StepBackService(chat=chat)
+
+
 def get_retriever_service(
     embeddings: EmbeddingService = Depends(get_embedding_service),
     store: QdrantStore = Depends(get_vector_store),
     hyde: HyDEService = Depends(get_hyde_service),
+    stepback: StepBackService = Depends(get_stepback_service),
 ) -> RetrieverService:
-    return RetrieverService(embeddings=embeddings, store=store, hyde=hyde)
+    return RetrieverService(
+        embeddings=embeddings, store=store, hyde=hyde, stepback=stepback
+    )
 
 
 def get_router_service(
@@ -101,4 +111,5 @@ def get_answer_service(
         chat=chat,
         router=router,
         hyde_enabled=settings.enable_hyde,
+        stepback_enabled=settings.enable_stepback,
     )

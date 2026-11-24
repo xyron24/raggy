@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # Retrieval (used from Phase 5 onward)
     default_top_k: int = 5
     enable_hyde: bool = True
+    enable_stepback: bool = True
 
 
 def get_settings() -> Settings:

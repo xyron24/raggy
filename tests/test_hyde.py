@@ -5,6 +5,7 @@ from qdrant_client import QdrantClient
 from app.schemas import Chunk
 from app.services.hyde import HYDE_SYSTEM_PROMPT, HyDEService
 from app.services.retriever import RetrieverService
+from app.services.stepback import StepBackService
 from app.services.vector_store import QdrantStore
 from tests.fakes import FakeChatService, FakeEmbeddingService, ScriptedEmbeddingService
 
@@ -35,8 +36,9 @@ def test_retrieve_with_hyde_embeds_hypothetical_not_query():
         [[1, 0, 0, 0]],
     )
     embeddings = FakeEmbeddingService(dim=4)
+    chat = FakeChatService(reply="imagined passage")
     retriever = RetrieverService(
-        embeddings, store, HyDEService(FakeChatService(reply="imagined passage"))
+        embeddings, store, HyDEService(chat), StepBackService(chat)
     )
     hits = retriever.retrieve_with_hyde("short q?", top_k=1)
     assert embeddings.calls == [["imagined passage"]]
@@ -46,8 +48,9 @@ def test_retrieve_with_hyde_embeds_hypothetical_not_query():
 def test_retrieve_with_hyde_falls_back_to_query_on_blank():
     store = make_store()
     embeddings = FakeEmbeddingService(dim=4)
+    chat = FakeChatService(reply="   ")
     retriever = RetrieverService(
-        embeddings, store, HyDEService(FakeChatService(reply="   "))
+        embeddings, store, HyDEService(chat), StepBackService(chat)
     )
     retriever.retrieve_with_hyde("short q?", top_k=1)
     assert embeddings.calls == [["short q?"]]
@@ -62,7 +65,7 @@ def test_retrieve_with_hyde_skips_llm_when_store_empty():
     )
     chat = FakeChatService()
     retriever = RetrieverService(
-        FakeEmbeddingService(dim=4), store, HyDEService(chat)
+        FakeEmbeddingService(dim=4), store, HyDEService(chat), StepBackService(chat)
     )
     assert retriever.retrieve_with_hyde("q?", top_k=1) == []
     assert chat.complete_calls == []
@@ -83,8 +86,12 @@ def test_hyde_retrieval_can_differ_from_plain():
     embeddings = ScriptedEmbeddingService(
         {"raw query": [0, 1, 0, 0], "imagined answer": [1, 0, 0, 0]}
     )
+    chat = FakeChatService(reply="imagined answer")
     retriever = RetrieverService(
-        embeddings, store, HyDEService(FakeChatService(reply="imagined answer"))  # type: ignore[arg-type]
+        embeddings,  # type: ignore[arg-type]
+        store,
+        HyDEService(chat),
+        StepBackService(chat),
     )
     plain = retriever.retrieve("raw query", top_k=1)
     expanded = retriever.retrieve_with_hyde("raw query", top_k=1)
