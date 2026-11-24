@@ -31,6 +31,11 @@ questions stay cheap while complex prompts get the full pipeline.
 
 ## Architecture Highlights
 
+![Raggy system architecture](./assets/architecture.png)
+
+The pipeline splits into an ingest path (documents in, vectors stored) and a
+query path (question in, cited answer out):
+
 ### 1. Two-Stage Retrieval (Dense Search + Re-rank)
 Qdrant returns a wide net of top-k candidates by cosine similarity; a
 re-ranking layer then scores each `(query, passage)` pair, drops low-score
@@ -79,6 +84,8 @@ readiness signal.
 
 ```text
 raggy/
+├── assets/
+│   └── architecture.png # System architecture diagram
 ├── app/
 │   ├── main.py          # FastAPI entrypoint and routes
 │   ├── config.py        # Environment-driven settings (pydantic-settings)
