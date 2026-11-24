@@ -10,11 +10,18 @@ from qdrant_client import QdrantClient
 from app.config import Settings
 from app.dependencies import get_answer_service, get_settings
 from app.main import app
-from app.schemas import DocumentIn, QueryKind, RouteDecision
+from app.schemas import (
+    DocumentIn,
+    PassageScore,
+    QueryKind,
+    RerankVerdict,
+    RouteDecision,
+)
 from app.services.answer import AnswerService
 from app.services.chunking import ChunkingService
 from app.services.hyde import HyDEService
 from app.services.ingest import IngestService
+from app.services.rerank import RerankerService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
 from app.services.stepback import StepBackService
@@ -48,6 +55,7 @@ def harness() -> Iterator[Harness]:
         ),
         chat,
         QueryRouter(chat),
+        RerankerService(chat),
         hyde_enabled=True,
         stepback_enabled=True,
     )
@@ -165,6 +173,7 @@ def test_hyde_flag_off_keeps_plain_retrieval():
         ),
         chat,
         QueryRouter(chat),
+        RerankerService(chat),
         hyde_enabled=False,
     )
     app.dependency_overrides[get_answer_service] = lambda: answer
@@ -196,6 +205,7 @@ def test_stepback_flag_off_keeps_plain_retrieval():
         ),
         chat,
         QueryRouter(chat),
+        RerankerService(chat),
         stepback_enabled=False,
     )
     app.dependency_overrides[get_answer_service] = lambda: answer
@@ -206,6 +216,23 @@ def test_stepback_flag_off_keeps_plain_retrieval():
     assert body["route"] == "complex"
     assert body["expanded"] is False
     assert len(chat.complete_calls) == 1
+
+
+def test_rerank_filters_noisy_passages(harness: Harness):
+    for i in range(2):
+        harness.ingest.ingest(
+            DocumentIn(doc_id=f"n{i}", text=f"document number {i} text here")
+        )
+    harness.chat.default_verdict = RerankVerdict(
+        scores=[
+            PassageScore(index=1, score=0.9, reason="relevant"),
+            PassageScore(index=2, score=0.05, reason="noise"),
+        ]
+    )
+    body = harness.client.post("/query", json={"query": "which document?"}).json()
+    assert len(body["sources"]) == 1
+    assert body["confidence"] == pytest.approx(0.9)
+    assert len(harness.chat.complete_calls) == 1
 
 
 def test_query_rejects_bad_input(harness: Harness):

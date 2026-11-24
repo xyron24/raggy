@@ -13,6 +13,7 @@ from app.services.chunking import ChunkingService
 from app.services.embeddings import EmbeddingService
 from app.services.hyde import HyDEService
 from app.services.ingest import IngestService
+from app.services.rerank import RerankerService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
 from app.services.stepback import StepBackService
@@ -100,16 +101,27 @@ def get_router_service(
     return QueryRouter(chat=chat)
 
 
+def get_reranker_service(
+    chat: ChatService = Depends(get_chat_service),
+    settings: Settings = Depends(get_settings),
+) -> RerankerService:
+    return RerankerService(
+        chat=chat, top_n=settings.top_n_rerank, min_score=settings.min_score
+    )
+
+
 def get_answer_service(
     retriever: RetrieverService = Depends(get_retriever_service),
     chat: ChatService = Depends(get_chat_service),
     router: QueryRouter = Depends(get_router_service),
+    reranker: RerankerService = Depends(get_reranker_service),
     settings: Settings = Depends(get_settings),
 ) -> AnswerService:
     return AnswerService(
         retriever=retriever,
         chat=chat,
         router=router,
+        reranker=reranker,
         hyde_enabled=settings.enable_hyde,
         stepback_enabled=settings.enable_stepback,
     )

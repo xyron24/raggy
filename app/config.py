@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     embed_batch_size: int = 100
     embedding_dim: int = 1536
 
-    # Retrieval (used from Phase 5 onward)
-    default_top_k: int = 5
+    # Retrieval: wide net first, precise cut second (two-stage from Phase 9)
+    top_k_retrieve: int = 10
+    top_n_rerank: int = 3
+    min_score: float = 0.3
     enable_hyde: bool = True
     enable_stepback: bool = True
 

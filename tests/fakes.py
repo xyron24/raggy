@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
 
-from app.schemas import QueryKind, RouteDecision
+from app.schemas import PassageScore, QueryKind, RerankVerdict, RouteDecision
 from app.services.chunking import ChunkingService
 from app.services.ingest import IngestService
 from app.services.vector_store import QdrantStore
@@ -31,17 +31,27 @@ class FakeEmbeddingService:
 
 
 class FakeChatService:
-    """Drop-in for ChatService with canned replies and route decisions."""
+    """Drop-in for ChatService with canned replies, decisions, and verdicts."""
 
     def __init__(
         self,
         reply: str = "Refunds are issued within 30 days [1].",
         decisions: list[RouteDecision] | None = None,
+        verdicts: list[RerankVerdict] | None = None,
     ) -> None:
         self.reply = reply
         self._decisions = list(decisions or [])
+        self._verdicts = list(verdicts or [])
         self.default_decision = RouteDecision(
             kind=QueryKind.FACTUAL, reason="default test route"
+        )
+        # Generous pass-through: out-of-range indices are ignored by the
+        # re-ranker, so tests only script verdicts when filtering matters.
+        self.default_verdict = RerankVerdict(
+            scores=[
+                PassageScore(index=i, score=1.0, reason="default test verdict")
+                for i in range(1, 21)
+            ]
         )
         self.complete_calls: list[tuple[str, str]] = []
         self.structured_calls: list[tuple[str, str, Any]] = []
@@ -54,6 +64,10 @@ class FakeChatService:
         self, system: str, user: str, response_model: type[T]
     ) -> T:
         self.structured_calls.append((system, user, response_model))
+        if getattr(response_model, "__name__", "") == "RerankVerdict":
+            if self._verdicts:
+                return self._verdicts.pop(0)  # type: ignore[return-value]
+            return self.default_verdict  # type: ignore[return-value]
         if self._decisions:
             return self._decisions.pop(0)  # type: ignore[return-value]
         return self.default_decision  # type: ignore[return-value]

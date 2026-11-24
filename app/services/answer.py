@@ -2,6 +2,7 @@
 
 from app.schemas import CitedSource, QueryKind, QueryResponse, SearchResult
 from app.services.chat import ChatService
+from app.services.rerank import RerankerService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
 
@@ -32,12 +33,14 @@ class AnswerService:
         retriever: RetrieverService,
         chat: ChatService,
         router: QueryRouter,
+        reranker: RerankerService,
         hyde_enabled: bool = True,
         stepback_enabled: bool = True,
     ) -> None:
         self._retriever = retriever
         self._chat = chat
         self._router = router
+        self._reranker = reranker
         self._hyde_enabled = hyde_enabled
         self._stepback_enabled = stepback_enabled
 
@@ -57,6 +60,7 @@ class AnswerService:
             results = self._retriever.retrieve_with_hyde(query, top_k=top_k)
         else:
             results = self._retriever.retrieve(query, top_k=top_k)
+        results = self._reranker.rerank(query, results)
         expanded = use_hyde or use_stepback
         if not results:
             return QueryResponse(

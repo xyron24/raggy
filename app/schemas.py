@@ -96,6 +96,20 @@ class RouteDecision(BaseModel):
     reason: str = Field(description="One sentence on why this route fits.")
 
 
+class PassageScore(BaseModel):
+    """One re-ranker judgment on a candidate passage."""
+
+    index: int = Field(ge=1, description="1-based position in the submitted candidate list.")
+    score: float = Field(ge=0, le=1, description="Relevance of this passage to the query.")
+    reason: str = Field(description="Short justification for the score.")
+
+
+class RerankVerdict(BaseModel):
+    """Structured re-ranker output: a score per candidate passage."""
+
+    scores: list[PassageScore] = Field(description="One entry per scored passage.")
+
+
 class QueryResponse(BaseModel):
     """Grounded answer plus the sources it cites."""
 

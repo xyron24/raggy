@@ -97,6 +97,7 @@ raggy/
 │       ├── router.py    # Query classification and routing
 │       ├── hyde.py      # Hypothetical-answer expansion
 │       ├── stepback.py  # Broad-question expansion + merge
+│       ├── rerank.py    # LLM relevance filter before synthesis
 │       └── answer.py    # Cited answer synthesis
 ├── tests/
 │   ├── fakes.py         # Shared fakes (embeddings, chat, memory Qdrant)
@@ -108,7 +109,8 @@ raggy/
 │   ├── test_query.py
 │   ├── test_router.py
 │   ├── test_hyde.py
-│   └── test_stepback.py
+│   ├── test_stepback.py
+│   └── test_rerank.py
 ├── Dockerfile
 ├── docker-compose.yml   # API + Qdrant stack
 ├── requirements.txt
@@ -127,8 +129,8 @@ raggy/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/xyron24/raggy-is-aware.git
-   cd raggy-is-aware
+   git clone https://github.com/xyron24/raggy.git
+   cd raggy
    ```
 
 2. **Create a virtualenv and install dependencies:**

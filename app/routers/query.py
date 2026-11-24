@@ -17,5 +17,5 @@ def ask_question(
     settings: Settings = Depends(get_settings),
 ) -> QueryResponse:
     """Answer a question from ingested documents, with cited sources."""
-    top_k = request.top_k if request.top_k is not None else settings.default_top_k
+    top_k = request.top_k if request.top_k is not None else settings.top_k_retrieve
     return answer.answer(request.query, top_k=top_k)
