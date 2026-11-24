@@ -83,5 +83,7 @@ class QdrantStore:
         ]
 
     def count(self) -> int:
-        """Number of points currently stored."""
+        """Number of points stored (0 when the collection is missing)."""
+        if not self.exists():
+            return 0
         return self._client.count(collection_name=self.collection).count

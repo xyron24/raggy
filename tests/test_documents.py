@@ -6,17 +6,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.dependencies import get_ingest_service, get_settings
+from app.dependencies import get_ingest_service, get_settings, get_vector_store
 from app.main import app
 from tests.fakes import make_test_ingest_service
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    # One shared instance: in-memory Qdrant keeps state inside the client,
+    # One shared service: in-memory Qdrant keeps state inside the client,
     # so each request must reuse it (a real server holds state itself).
+    # Stats shares the same store, like one collection server-side.
     service = make_test_ingest_service()
     app.dependency_overrides[get_ingest_service] = lambda: service
+    app.dependency_overrides[get_vector_store] = lambda: service.store
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -65,3 +67,15 @@ def test_ingest_without_api_key_returns_503():
         app.dependency_overrides.clear()
     assert response.status_code == 503
     assert "OPENAI_API_KEY" in response.json()["detail"]
+
+
+def test_stats_works_without_api_key():
+    service = make_test_ingest_service()
+    app.dependency_overrides[get_settings] = lambda: Settings(openai_api_key="")
+    app.dependency_overrides[get_vector_store] = lambda: service.store
+    try:
+        response = TestClient(app).get("/documents/stats")
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["count"] == 0

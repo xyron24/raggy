@@ -17,6 +17,3 @@ venv/
 .DS_Store
 .vscode/
 .idea/
-
-# Docker
-.dockerignore

@@ -110,10 +110,15 @@ raggy/
 │   ├── test_router.py
 │   ├── test_hyde.py
 │   ├── test_stepback.py
-│   └── test_rerank.py
+│   ├── test_rerank.py
+│   └── test_seed.py
+├── scripts/
+│   └── seed.py          # Ingest demo FAQ docs into a running API
 ├── Dockerfile
+├── .dockerignore
 ├── docker-compose.yml   # API + Qdrant stack
-├── requirements.txt
+├── requirements.txt     # Runtime deps (lean production image)
+├── requirements-dev.txt # Runtime + test deps for local dev
 └── .env.example         # Copy to .env and fill in
 ```
 
@@ -137,7 +142,7 @@ raggy/
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
-   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
    ```
 
 3. **Environment setup:**
@@ -168,6 +173,17 @@ docker compose up --build
 
 The API reads `QDRANT_URL=http://qdrant:6333` inside Compose; Qdrant data
 persists in a named volume across restarts.
+
+### Seed demo data
+
+With the stack running and `OPENAI_API_KEY` set in `.env`:
+
+```bash
+python scripts/seed.py
+```
+
+This ingests five Acme Cloud FAQ documents, prints collection stats, and
+shows a sample query to try. `RAGGY_URL` overrides the target API.
 
 ### Run tests
 

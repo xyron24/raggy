@@ -31,6 +31,16 @@ def test_ensure_collection_is_idempotent(store: QdrantStore):
     assert store.count() == 0
 
 
+def test_count_missing_collection_is_zero():
+    store = QdrantStore(
+        url=":memory:",
+        collection="missing",
+        vector_size=4,
+        client=QdrantClient(":memory:"),
+    )
+    assert store.count() == 0
+
+
 def test_exists_reports_collection_presence():
     store = QdrantStore(
         url=":memory:",

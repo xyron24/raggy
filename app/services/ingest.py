@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from app.schemas import CollectionStats, DocumentIn, IngestResponse
+from app.schemas import DocumentIn, IngestResponse
 from app.services.chunking import ChunkingService
 from app.services.embeddings import EmbeddingService
 from app.services.vector_store import QdrantStore
@@ -39,10 +39,7 @@ class IngestService:
             chunk_ids=[c.chunk_id for c in chunks],
         )
 
-    def stats(self) -> CollectionStats:
-        """Point count and shape info for the vector collection."""
-        return CollectionStats(
-            collection=self._store.collection,
-            count=self._store.count(),
-            vector_size=self._store.vector_size,
-        )
+    @property
+    def store(self) -> QdrantStore:
+        """The underlying vector store (shared with stats endpoints)."""
+        return self._store

@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies import get_ingest_service
+from app.dependencies import get_ingest_service, get_vector_store
 from app.schemas import CollectionStats, DocumentIn, IngestResponse
 from app.services.ingest import IngestService
+from app.services.vector_store import QdrantStore
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -20,7 +21,14 @@ def ingest_document(
 
 @router.get("/stats", response_model=CollectionStats)
 def collection_stats(
-    ingest: IngestService = Depends(get_ingest_service),
+    store: QdrantStore = Depends(get_vector_store),
 ) -> CollectionStats:
-    """Point count and shape info for the vector collection."""
-    return ingest.stats()
+    """Point count and shape info for the vector collection.
+
+    Depends only on the store, so observability never needs an API key.
+    """
+    return CollectionStats(
+        collection=store.collection,
+        count=store.count(),
+        vector_size=store.vector_size,
+    )
