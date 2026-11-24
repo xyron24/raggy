@@ -103,3 +103,4 @@ class QueryResponse(BaseModel):
     sources: list[CitedSource] = Field(description="In citation order: sources[i].index == i + 1.")
     route: QueryKind = Field(description="Router classification for this query.")
     confidence: float = Field(description="Best passage similarity score; 0 when no passages.")
+    expanded: bool = Field(description="True when HyDE expansion drove retrieval.")

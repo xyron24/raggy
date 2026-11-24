@@ -100,6 +100,21 @@ class FakeChatClient:
         )
 
 
+class ScriptedEmbeddingService:
+    """Embedder returning fixed vectors per text, for retrieval comparisons."""
+
+    def __init__(self, vectors: dict[str, list[float]]) -> None:
+        self.vectors = vectors
+        self.calls: list[list[str]] = []
+
+    def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
+        self.calls.append(list(texts))
+        return [self.vectors[text] for text in texts]
+
+    def embed_query(self, query: str) -> list[float]:
+        return self.embed_texts([query])[0]
+
+
 def make_test_ingest_service(dim: int = 8) -> IngestService:
     """IngestService wired to real chunking, fake embeddings, memory Qdrant."""
     store = QdrantStore(

@@ -95,6 +95,7 @@ raggy/
 │       ├── retriever.py # Query embedding + top-k search
 │       ├── chat.py      # OpenAI chat + structured outputs
 │       ├── router.py    # Query classification and routing
+│       ├── hyde.py      # Hypothetical-answer expansion
 │       └── answer.py    # Cited answer synthesis
 ├── tests/
 │   ├── fakes.py         # Shared fakes (embeddings, chat, memory Qdrant)
@@ -104,7 +105,8 @@ raggy/
 │   ├── test_vector_store.py
 │   ├── test_documents.py
 │   ├── test_query.py
-│   └── test_router.py
+│   ├── test_router.py
+│   └── test_hyde.py
 ├── Dockerfile
 ├── docker-compose.yml   # API + Qdrant stack
 ├── requirements.txt

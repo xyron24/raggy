@@ -1,6 +1,6 @@
 """Grounded question answering over retrieved passages."""
 
-from app.schemas import CitedSource, QueryResponse, SearchResult
+from app.schemas import CitedSource, QueryKind, QueryResponse, SearchResult
 from app.services.chat import ChatService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
@@ -32,25 +32,33 @@ class AnswerService:
         retriever: RetrieverService,
         chat: ChatService,
         router: QueryRouter,
+        hyde_enabled: bool = True,
     ) -> None:
         self._retriever = retriever
         self._chat = chat
         self._router = router
+        self._hyde_enabled = hyde_enabled
 
     def answer(self, query: str, top_k: int = 5) -> QueryResponse:
         """Answer a question with citations, or decline honestly.
 
-        Routing runs before retrieval so later expansion stages can pick
-        their own retrieval strategy per route.
+        Routing runs before retrieval so each route can pick its own
+        retrieval strategy: vague questions expand via HyDE, the rest use
+        plain retrieval (complex questions gain Step-Back next).
         """
         decision = self._router.route(query)
-        results = self._retriever.retrieve(query, top_k=top_k)
+        use_hyde = self._hyde_enabled and decision.kind is QueryKind.VAGUE
+        if use_hyde:
+            results = self._retriever.retrieve_with_hyde(query, top_k=top_k)
+        else:
+            results = self._retriever.retrieve(query, top_k=top_k)
         if not results:
             return QueryResponse(
                 answer=NO_PASSAGES_ANSWER,
                 sources=[],
                 route=decision.kind,
                 confidence=0.0,
+                expanded=use_hyde,
             )
         user_prompt = f"Passages:\n{format_context(results)}\n\nQuestion: {query}\nAnswer with citations:"
         text = self._chat.complete(SYSTEM_PROMPT, user_prompt).strip()
@@ -70,4 +78,5 @@ class AnswerService:
             route=decision.kind,
             # Qdrant returns hits best-first, so the head is the max score.
             confidence=results[0].score,
+            expanded=use_hyde,
         )

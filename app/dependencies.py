@@ -11,6 +11,7 @@ from app.services.answer import AnswerService
 from app.services.chat import ChatService
 from app.services.chunking import ChunkingService
 from app.services.embeddings import EmbeddingService
+from app.services.hyde import HyDEService
 from app.services.ingest import IngestService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
@@ -69,11 +70,18 @@ def get_chat_service(
     )
 
 
+def get_hyde_service(
+    chat: ChatService = Depends(get_chat_service),
+) -> HyDEService:
+    return HyDEService(chat=chat)
+
+
 def get_retriever_service(
     embeddings: EmbeddingService = Depends(get_embedding_service),
     store: QdrantStore = Depends(get_vector_store),
+    hyde: HyDEService = Depends(get_hyde_service),
 ) -> RetrieverService:
-    return RetrieverService(embeddings=embeddings, store=store)
+    return RetrieverService(embeddings=embeddings, store=store, hyde=hyde)
 
 
 def get_router_service(
@@ -86,5 +94,11 @@ def get_answer_service(
     retriever: RetrieverService = Depends(get_retriever_service),
     chat: ChatService = Depends(get_chat_service),
     router: QueryRouter = Depends(get_router_service),
+    settings: Settings = Depends(get_settings),
 ) -> AnswerService:
-    return AnswerService(retriever=retriever, chat=chat, router=router)
+    return AnswerService(
+        retriever=retriever,
+        chat=chat,
+        router=router,
+        hyde_enabled=settings.enable_hyde,
+    )

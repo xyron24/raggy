@@ -13,6 +13,7 @@ from app.main import app
 from app.schemas import DocumentIn, QueryKind, RouteDecision
 from app.services.answer import AnswerService
 from app.services.chunking import ChunkingService
+from app.services.hyde import HyDEService
 from app.services.ingest import IngestService
 from app.services.retriever import RetrieverService
 from app.services.router import QueryRouter
@@ -41,7 +42,10 @@ def harness() -> Iterator[Harness]:
     chat = FakeChatService()
     ingest = IngestService(ChunkingService(), FakeEmbeddingService(dim), store)
     answer = AnswerService(
-        RetrieverService(FakeEmbeddingService(dim), store), chat, QueryRouter(chat)
+        RetrieverService(FakeEmbeddingService(dim), store, HyDEService(chat)),
+        chat,
+        QueryRouter(chat),
+        hyde_enabled=True,
     )
     app.dependency_overrides[get_answer_service] = lambda: answer
     yield Harness(client=TestClient(app), ingest=ingest, chat=chat)
@@ -72,6 +76,7 @@ def test_query_happy_path_returns_cited_answer(harness: Harness):
     assert "Refunds are issued" in source["text"]
     assert body["route"] == "factual"
     assert body["confidence"] == pytest.approx(1.0)
+    assert body["expanded"] is False
 
 
 def test_prompt_contains_passages_and_question(harness: Harness):
@@ -92,6 +97,7 @@ def test_empty_store_skips_synthesis_call(harness: Harness):
     assert "No relevant passages" in body["answer"]
     assert body["route"] == "factual"
     assert body["confidence"] == 0.0
+    assert body["expanded"] is False
     assert harness.chat.complete_calls == []
     assert len(harness.chat.structured_calls) == 1
 
@@ -111,9 +117,53 @@ def test_response_route_follows_router_decision(harness: Harness):
     )
     body = harness.client.post("/query", json={"query": "compare everything"}).json()
     assert body["route"] == "complex"
+    assert body["expanded"] is False
     system, user, model = harness.chat.structured_calls[0]
     assert "compare everything" in user
     assert model.__name__ == "RouteDecision"
+
+
+def test_vague_route_expands_via_hyde(harness: Harness):
+    seed(harness)
+    harness.chat.default_decision = RouteDecision(
+        kind=QueryKind.VAGUE, reason="seeded decision"
+    )
+    body = harness.client.post("/query", json={"query": "refunds?"}).json()
+    assert body["route"] == "vague"
+    assert body["expanded"] is True
+    assert len(harness.chat.complete_calls) == 2
+    hyde_system, hyde_user = harness.chat.complete_calls[0]
+    assert hyde_user == "refunds?"
+    assert "excerpt" in hyde_system
+
+
+def test_hyde_flag_off_keeps_plain_retrieval():
+    dim = 8
+    store = QdrantStore(
+        url=":memory:",
+        collection="test_docs",
+        vector_size=dim,
+        client=QdrantClient(":memory:"),
+    )
+    chat = FakeChatService(
+        decisions=[RouteDecision(kind=QueryKind.VAGUE, reason="seeded")]
+    )
+    ingest = IngestService(ChunkingService(), FakeEmbeddingService(dim), store)
+    ingest.ingest(DocumentIn(doc_id="d", text="some fact here"))
+    answer = AnswerService(
+        RetrieverService(FakeEmbeddingService(dim), store, HyDEService(chat)),
+        chat,
+        QueryRouter(chat),
+        hyde_enabled=False,
+    )
+    app.dependency_overrides[get_answer_service] = lambda: answer
+    try:
+        body = TestClient(app).post("/query", json={"query": "vague?"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body["route"] == "vague"
+    assert body["expanded"] is False
+    assert len(chat.complete_calls) == 1
 
 
 def test_query_rejects_bad_input(harness: Harness):
